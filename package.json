@@ -1,0 +1,46 @@
+{
+  "name": "dashboard-cli",
+  "version": "1.0.0",
+  "main": "index.js",
+  "bin": {
+    "add-dashboard": "./dist/index.js"
+  },
+  "type": "commonjs",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && npm run copy-templates",
+    "copy-templates": "cp -r src/templates dist/",
+    "dev": "ts-node src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "execa": "^9.6.0",
+    "fs-extra": "^11.3.1",
+    "inquirer": "^12.9.4",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@radix-ui/react-avatar": "^1.1.10",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^24.3.3",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.544.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tailwind-merge": "^3.3.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  }
+}
