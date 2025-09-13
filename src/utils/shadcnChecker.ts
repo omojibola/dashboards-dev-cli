@@ -32,7 +32,7 @@ export async function ensureShadcn(cwd: string) {
 
 export async function addShadcnComponents(cwd: string, components: string[]) {
   info(`📦 Adding shadcn/ui components: ${components.join(', ')}`);
-  await execa('npx', ['shadcn-ui@latest', 'add', ...components], {
+  await execa('npx', ['shadcn@latest', 'add', ...components], {
     stdio: 'inherit',
     cwd,
   });

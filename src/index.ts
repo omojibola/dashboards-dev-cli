@@ -3,92 +3,116 @@ import inquirer from 'inquirer';
 import path from 'path';
 import fs from 'fs-extra';
 import { info, ok, err } from './utils/logger';
-import { detectPM } from './utils/pm';
+import { detectPM, addDeps } from './utils/pm';
 import { hasTailwind, installTailwind } from './utils/tailwind';
-import { addDeps } from './utils/pm';
 import { copyIfMissing } from './utils/scaffold';
 import { addShadcnComponents, ensureShadcn } from './utils/shadcnChecker';
+import { detectComponentsNeeded } from './utils/detectComponentsNeeded';
 
 async function main() {
-  const [, , arg] = process.argv;
-  const dashboardName = arg?.includes('/') ? arg.split('/')[1] : arg;
+  const [, , cmd, arg] = process.argv;
 
-  if (!dashboardName) {
+  if (cmd !== 'add') {
     err(
-      'Usage: npx add-dashboard <org-or-scope>/<dashboard-name>  OR  npx add-dashboard <dashboard-name>'
+      '❌ Unknown command. Usage: npx dashboard-studio add <category>/<dashboard-name>'
     );
     process.exit(1);
   }
 
-  // 1) Detect framework (MVP: Next.js only)
+  if (!arg) {
+    err(
+      '❌ Missing argument. Usage: npx dashboard-studio add <category>/<dashboard-name>'
+    );
+    process.exit(1);
+  }
+
+  const [category, dashboardName] = arg.split('/');
+  const templateRoot = path.join(__dirname, 'templates');
+
+  if (!category || !dashboardName) {
+    err('❌ Invalid format. Use <category>/<dashboard-name>');
+    process.exit(1);
+  }
+
+  // 1) Framework selection
+  const frameworkMap: Record<string, string> = {
+    'Next.js (React)': 'next',
+    React: 'react',
+    Vue: 'vue',
+  };
+
   const { framework } = await inquirer.prompt([
     {
       type: 'list',
       name: 'framework',
       message: 'Framework?',
-      choices: ['Next.js (React)'],
+      choices: Object.keys(frameworkMap),
     },
   ]);
   if (!framework) process.exit(1);
 
-  // 2) Resolve template paths
-  const templateRoot = path.join(__dirname, 'templates');
-  const pageTemplate = path.join(templateRoot, 'next', `${dashboardName}.tsx`);
+  const frameworkFolder = frameworkMap[framework];
+  if (!frameworkFolder) {
+    err(`❌ Framework not supported`);
+    process.exit(1);
+  }
+  const frameworkRoot = path.join(templateRoot, frameworkFolder);
+
+  // 2) Resolve dashboard template
+  const pageTemplate = path.join(
+    frameworkRoot,
+    category,
+    `${dashboardName}.tsx`
+  );
+
   if (!fs.existsSync(pageTemplate)) {
     err(
-      `Dashboard "${dashboardName}" not found for Next.js.\nAvailable: ${listAvailable(
-        path.join(templateRoot, 'next')
+      `❌ Dashboard "${dashboardName}" not found in "${category}".\nAvailable: ${listAvailable(
+        path.join(frameworkRoot, category)
       )}`
     );
     process.exit(1);
   }
 
-  // 3) Copy page into /pages if pages router, else /app if app router
+  // 3) Copy page into /pages or /app
   let targetDir: string;
   if (fs.existsSync(path.join(process.cwd(), 'app'))) {
-    // App Router project
     targetDir = path.join(process.cwd(), 'app', dashboardName);
     await fs.ensureDir(targetDir);
     fs.copyFileSync(pageTemplate, path.join(targetDir, 'page.tsx'));
     ok(`Page created: app/${dashboardName}/page.tsx`);
   } else {
-    // Pages Router project
     targetDir = path.join(process.cwd(), 'pages');
     await fs.ensureDir(targetDir);
     fs.copyFileSync(pageTemplate, path.join(targetDir, `${dashboardName}.tsx`));
     ok(`Page created: pages/${dashboardName}.tsx`);
   }
 
+  // 4) Detect & install required shadcn components
   const comps: string[] = detectComponentsNeeded(pageTemplate) ?? [];
-  if (comps?.length > 0) {
+  if (comps.length > 0) {
     await ensureShadcn(process.cwd());
     await addShadcnComponents(process.cwd(), comps);
   }
 
-  // 4) Ensure components/ui/* and lib/utils.ts
-  const componentsSrc = path.join(templateRoot, 'components');
+  // 5) Copy shared framework components
+  const componentsSrc = path.join(frameworkRoot, 'components');
+  const componentsDest = path.join(process.cwd(), 'components');
+  await fs.ensureDir(componentsDest);
+
+  copyIfMissing(
+    path.join(componentsSrc, 'dashboard-header.tsx'),
+    path.join(componentsDest, 'dashboard-header.tsx')
+  );
+
+  // 6) Copy global lib
   const libSrc = path.join(templateRoot, 'lib');
-  const componentsDest = path.join(process.cwd(), 'components', 'ui');
   const libDest = path.join(process.cwd(), 'lib');
-
-  await fs.ensureDir(path.dirname(componentsDest));
-  copyIfMissing(
-    path.join(componentsSrc, 'card.tsx'),
-    path.join(componentsDest, 'card.tsx')
-  );
-  copyIfMissing(
-    path.join(componentsSrc, 'button.tsx'),
-    path.join(componentsDest, 'button.tsx')
-  );
-  copyIfMissing(
-    path.join(componentsSrc, 'dialog.tsx'),
-    path.join(componentsDest, 'dialog.tsx')
-  );
-
   await fs.ensureDir(libDest);
+
   copyIfMissing(path.join(libSrc, 'utils.ts'), path.join(libDest, 'utils.ts'));
 
-  // 5) Tailwind check & prompt install
+  // 7) Tailwind check & install
   const pm = detectPM(process.cwd());
   if (!hasTailwind(process.cwd())) {
     const { should } = await inquirer.prompt([
@@ -107,10 +131,10 @@ async function main() {
     }
   }
 
+  // 8) Ensure shadcn init
   await ensureShadcn(process.cwd());
-  await addShadcnComponents(process.cwd(), ['card', 'button', 'dialog']);
 
-  // 6) Runtime deps (Radix + utils)
+  // 9) Install runtime deps
   info('Ensuring UI dependencies are installed…');
   await addDeps(
     pm,
@@ -127,17 +151,17 @@ async function main() {
   );
   ok('Dependencies installed.');
 
-  // 7) Final hints
-  info(`Done. Start your dev server and visit: /${dashboardName}`);
+  // 10) Final hints
+  info(`✅ Done. Start your dev server and visit: /${dashboardName}`);
   ok('Happy hacking! 🚀');
 }
 
 function listAvailable(dir: string): string {
   if (!fs.existsSync(dir)) return '(none)';
   return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.tsx'))
-    .map((f) => f.replace('.tsx', ''))
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((d) => d.isFile() && d.name.endsWith('.tsx'))
+    .map((f) => f.name.replace('.tsx', ''))
     .join(', ');
 }
 
@@ -145,6 +169,3 @@ main().catch((e) => {
   err(e?.message || String(e));
   process.exit(1);
 });
-function detectComponentsNeeded(pageTemplate: string) {
-  throw new Error('Function not implemented.');
-}

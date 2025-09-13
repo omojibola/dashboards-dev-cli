@@ -35,7 +35,7 @@ async function ensureShadcn(cwd) {
 }
 async function addShadcnComponents(cwd, components) {
     (0, logger_1.info)(`📦 Adding shadcn/ui components: ${components.join(', ')}`);
-    await (0, execa_1.execa)('npx', ['shadcn-ui@latest', 'add', ...components], {
+    await (0, execa_1.execa)('npx', ['shadcn@latest', 'add', ...components], {
         stdio: 'inherit',
         cwd,
     });

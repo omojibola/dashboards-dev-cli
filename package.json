@@ -1,9 +1,9 @@
 {
-  "name": "dashboard-cli",
+  "name": "dashboard-studio",
   "version": "1.0.0",
   "main": "index.js",
   "bin": {
-    "add-dashboard": "./dist/index.js"
+    "dashboard-studio": "./dist/index.js"
   },
   "type": "commonjs",
   "files": [
