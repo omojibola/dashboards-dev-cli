@@ -3,7 +3,7 @@ name: Publish to npm
 on:
   push:
     tags:
-      - "v*"
+      - "v*"   # triggers only on version tags (e.g. v1.2.3)
 
 jobs:
   publish:
@@ -22,6 +22,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check version consistency
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Package.json version: $PKG_VERSION"
+          echo "Git tag version: $TAG_VERSION"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "❌ Version mismatch!"
+            exit 1
+          fi
+          echo "✅ Versions match"
+
       - name: Build project
         run: npm run build
 
@@ -29,3 +41,21 @@ jobs:
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            🚀 Version ${{ github.ref_name }} published to npm.
+
+            ## Installation
+            ```bash
+            npx dashboard-studio add <category>/<dashboard-name>
+            ```
+
+            ## Changes
+            - Describe what’s new here
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
