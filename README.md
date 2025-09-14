@@ -25,7 +25,7 @@ Install missing dependencies (Shadcn, Tailwind, Radix UI, Lucide, etc.)
 
 Get you running instantly 🚀
 
-🛠 Development Setup
+## Development Setup
 
 Clone the repo:
 
@@ -48,7 +48,7 @@ Or test from build output:
 
 node dist/index.js add fintech/fintech-01
 
-✍️ Contributing
+## Contributing
 
 We welcome contributions! 🎉
 Please follow the Conventional Commits convention and the release workflow below.
