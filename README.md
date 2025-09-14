@@ -3,7 +3,7 @@
 Scaffold beautiful dashboards into your **Next.js**, **React**, or **Vue** project with a single command.
 
 [![npm version](https://img.shields.io/npm/v/dashboard-studio.svg?style=flat-square)](https://www.npmjs.com/package/dashboard-studio)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/<your-org>/<your-repo>/publish.yml?branch=main&style=flat-square)](https://github.com/<your-org>/<your-repo>/actions)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/omojibola/dashboards-dev-cli/publish.yml?branch=main&style=flat-square)](https://github.com/omojibola/dashboards-dev-cli/actions)
 
 ---
 
@@ -29,7 +29,7 @@ Get you running instantly 🚀
 
 Clone the repo:
 
-git clone https://github.com/omojibolaorija/dashboard-studio.git
+git clone https://github.com/omojibola/dashboard-studio.git
 cd dashboard-studio
 
 Install dependencies:
