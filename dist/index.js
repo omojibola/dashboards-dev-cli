@@ -13,6 +13,7 @@ const tailwind_1 = require("./utils/tailwind");
 const scaffold_1 = require("./utils/scaffold");
 const shadcnChecker_1 = require("./utils/shadcnChecker");
 const detectComponentsNeeded_1 = require("./utils/detectComponentsNeeded");
+// --- Main CLI Logic ---
 async function main() {
     var _a;
     const [, , cmd, arg] = process.argv;
@@ -22,6 +23,11 @@ async function main() {
     }
     if (!arg) {
         (0, logger_1.err)('❌ Missing argument. Usage: npx dashboard-studio add <category>/<dashboard-name>');
+        process.exit(1);
+    }
+    // Check if a package.json file exists
+    if (!fs_extra_1.default.existsSync(path_1.default.join(process.cwd(), 'package.json'))) {
+        (0, logger_1.err)('❌ Not a valid project directory. A package.json file is required.');
         process.exit(1);
     }
     const [category, dashboardName] = arg.split('/');
@@ -36,12 +42,13 @@ async function main() {
         React: 'react',
         Vue: 'vue',
     };
+    const frameworkChoices = Object.keys(frameworkMap);
     const { framework } = await inquirer_1.default.prompt([
         {
             type: 'list',
             name: 'framework',
             message: 'Framework?',
-            choices: Object.keys(frameworkMap),
+            choices: frameworkChoices,
         },
     ]);
     if (!framework)
@@ -55,7 +62,7 @@ async function main() {
     // 2) Resolve dashboard template
     const pageTemplate = path_1.default.join(frameworkRoot, category, `${dashboardName}.tsx`);
     if (!fs_extra_1.default.existsSync(pageTemplate)) {
-        (0, logger_1.err)(`❌ Dashboard "${dashboardName}" not found in "${category}".\nAvailable: ${listAvailable(path_1.default.join(frameworkRoot, category))}`);
+        (0, logger_1.err)(`❌ Dashboard template not found in "${category}".\nAvailable: ${listAvailable(path_1.default.join(frameworkRoot, category))}`);
         process.exit(1);
     }
     // 3) Copy page into /pages or /app
@@ -72,23 +79,23 @@ async function main() {
         fs_extra_1.default.copyFileSync(pageTemplate, path_1.default.join(targetDir, `${dashboardName}.tsx`));
         (0, logger_1.ok)(`Page created: pages/${dashboardName}.tsx`);
     }
-    // 4) Detect & install required shadcn components
+    // 4) Ensure shadcn is initialized
+    await (0, shadcnChecker_1.ensureShadcn)(process.cwd());
+    // 5) Detect & add required shadcn components
     const comps = (_a = (0, detectComponentsNeeded_1.detectComponentsNeeded)(pageTemplate)) !== null && _a !== void 0 ? _a : [];
     if (comps.length > 0) {
-        await (0, shadcnChecker_1.ensureShadcn)(process.cwd());
+        (0, logger_1.info)(`Detected needed shadcn components: ${comps.join(', ')}`);
         await (0, shadcnChecker_1.addShadcnComponents)(process.cwd(), comps);
     }
-    // 5) Copy shared framework components
+    // 6) Copy shared framework components
     const componentsSrc = path_1.default.join(frameworkRoot, 'components');
     const componentsDest = path_1.default.join(process.cwd(), 'components');
-    await fs_extra_1.default.ensureDir(componentsDest);
     (0, scaffold_1.copyIfMissing)(path_1.default.join(componentsSrc, 'dashboard-header.tsx'), path_1.default.join(componentsDest, 'dashboard-header.tsx'));
-    // 6) Copy global lib
+    // 7) Copy global lib
     const libSrc = path_1.default.join(templateRoot, 'lib');
     const libDest = path_1.default.join(process.cwd(), 'lib');
-    await fs_extra_1.default.ensureDir(libDest);
     (0, scaffold_1.copyIfMissing)(path_1.default.join(libSrc, 'utils.ts'), path_1.default.join(libDest, 'utils.ts'));
-    // 7) Tailwind check & install
+    // 8) Tailwind check & install
     const pm = (0, pm_1.detectPM)(process.cwd());
     if (!(0, tailwind_1.hasTailwind)(process.cwd())) {
         const { should } = await inquirer_1.default.prompt([
@@ -100,30 +107,32 @@ async function main() {
             },
         ]);
         if (should) {
+            (0, logger_1.info)('Installing TailwindCSS...');
             await (0, tailwind_1.installTailwind)(pm, process.cwd());
+            (0, logger_1.ok)('TailwindCSS installed.');
         }
         else {
             (0, logger_1.err)('TailwindCSS is required for the styled dashboard. Exiting.');
             process.exit(1);
         }
     }
-    // 8) Ensure shadcn init
-    await (0, shadcnChecker_1.ensureShadcn)(process.cwd());
     // 9) Install runtime deps
     (0, logger_1.info)('Ensuring UI dependencies are installed…');
-    await (0, pm_1.addDeps)(pm, [
+    const deps = [
         '@radix-ui/react-dialog',
         '@radix-ui/react-dropdown-menu',
         '@radix-ui/react-avatar',
         'lucide-react',
         'clsx',
         'tailwind-merge',
-    ], false, process.cwd());
+    ];
+    await (0, pm_1.addDeps)(pm, deps, false, process.cwd());
     (0, logger_1.ok)('Dependencies installed.');
     // 10) Final hints
     (0, logger_1.info)(`✅ Done. Start your dev server and visit: /${dashboardName}`);
     (0, logger_1.ok)('Happy hacking! 🚀');
 }
+// --- Helper Functions ---
 function listAvailable(dir) {
     if (!fs_extra_1.default.existsSync(dir))
         return '(none)';

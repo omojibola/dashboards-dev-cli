@@ -9,6 +9,7 @@ import { copyIfMissing } from './utils/scaffold';
 import { addShadcnComponents, ensureShadcn } from './utils/shadcnChecker';
 import { detectComponentsNeeded } from './utils/detectComponentsNeeded';
 
+// --- Main CLI Logic ---
 async function main() {
   const [, , cmd, arg] = process.argv;
 
@@ -26,6 +27,12 @@ async function main() {
     process.exit(1);
   }
 
+  // Check if a package.json file exists
+  if (!fs.existsSync(path.join(process.cwd(), 'package.json'))) {
+    err('❌ Not a valid project directory. A package.json file is required.');
+    process.exit(1);
+  }
+
   const [category, dashboardName] = arg.split('/');
   const templateRoot = path.join(__dirname, 'templates');
 
@@ -35,18 +42,23 @@ async function main() {
   }
 
   // 1) Framework selection
-  const frameworkMap: Record<string, string> = {
+  const frameworkMap = {
     'Next.js (React)': 'next',
     React: 'react',
     Vue: 'vue',
   };
 
-  const { framework } = await inquirer.prompt([
+  const frameworkChoices = Object.keys(frameworkMap) as Array<
+    keyof typeof frameworkMap
+  >;
+  const { framework } = await inquirer.prompt<{
+    framework: keyof typeof frameworkMap;
+  }>([
     {
       type: 'list',
       name: 'framework',
       message: 'Framework?',
-      choices: Object.keys(frameworkMap),
+      choices: frameworkChoices,
     },
   ]);
   if (!framework) process.exit(1);
@@ -67,7 +79,7 @@ async function main() {
 
   if (!fs.existsSync(pageTemplate)) {
     err(
-      `❌ Dashboard "${dashboardName}" not found in "${category}".\nAvailable: ${listAvailable(
+      `❌ Dashboard template not found in "${category}".\nAvailable: ${listAvailable(
         path.join(frameworkRoot, category)
       )}`
     );
@@ -88,31 +100,30 @@ async function main() {
     ok(`Page created: pages/${dashboardName}.tsx`);
   }
 
-  // 4) Detect & install required shadcn components
-  const comps: string[] = detectComponentsNeeded(pageTemplate) ?? [];
+  // 4) Ensure shadcn is initialized
+  await ensureShadcn(process.cwd());
+
+  // 5) Detect & add required shadcn components
+  const comps = detectComponentsNeeded(pageTemplate) ?? [];
   if (comps.length > 0) {
-    await ensureShadcn(process.cwd());
+    info(`Detected needed shadcn components: ${comps.join(', ')}`);
     await addShadcnComponents(process.cwd(), comps);
   }
 
-  // 5) Copy shared framework components
+  // 6) Copy shared framework components
   const componentsSrc = path.join(frameworkRoot, 'components');
   const componentsDest = path.join(process.cwd(), 'components');
-  await fs.ensureDir(componentsDest);
-
   copyIfMissing(
     path.join(componentsSrc, 'dashboard-header.tsx'),
     path.join(componentsDest, 'dashboard-header.tsx')
   );
 
-  // 6) Copy global lib
+  // 7) Copy global lib
   const libSrc = path.join(templateRoot, 'lib');
   const libDest = path.join(process.cwd(), 'lib');
-  await fs.ensureDir(libDest);
-
   copyIfMissing(path.join(libSrc, 'utils.ts'), path.join(libDest, 'utils.ts'));
 
-  // 7) Tailwind check & install
+  // 8) Tailwind check & install
   const pm = detectPM(process.cwd());
   if (!hasTailwind(process.cwd())) {
     const { should } = await inquirer.prompt([
@@ -124,31 +135,26 @@ async function main() {
       },
     ]);
     if (should) {
+      info('Installing TailwindCSS...');
       await installTailwind(pm, process.cwd());
+      ok('TailwindCSS installed.');
     } else {
       err('TailwindCSS is required for the styled dashboard. Exiting.');
       process.exit(1);
     }
   }
 
-  // 8) Ensure shadcn init
-  await ensureShadcn(process.cwd());
-
   // 9) Install runtime deps
   info('Ensuring UI dependencies are installed…');
-  await addDeps(
-    pm,
-    [
-      '@radix-ui/react-dialog',
-      '@radix-ui/react-dropdown-menu',
-      '@radix-ui/react-avatar',
-      'lucide-react',
-      'clsx',
-      'tailwind-merge',
-    ],
-    false,
-    process.cwd()
-  );
+  const deps = [
+    '@radix-ui/react-dialog',
+    '@radix-ui/react-dropdown-menu',
+    '@radix-ui/react-avatar',
+    'lucide-react',
+    'clsx',
+    'tailwind-merge',
+  ];
+  await addDeps(pm, deps, false, process.cwd());
   ok('Dependencies installed.');
 
   // 10) Final hints
@@ -156,6 +162,7 @@ async function main() {
   ok('Happy hacking! 🚀');
 }
 
+// --- Helper Functions ---
 function listAvailable(dir: string): string {
   if (!fs.existsSync(dir)) return '(none)';
   return fs
